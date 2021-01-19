@@ -1,16 +1,35 @@
-const apiBaseUrl = 'https://api.enye.tech/v1/challenge/records';
+let apiBaseUrl;
+if (process.env.NODE_ENV === 'development') {
+  apiBaseUrl = 'http://localhost:3001';
+} else {
+  apiBaseUrl = 'https://api.enye.tech/v1/challenge';
+}
 
 async function getRecords(signal) {
   try {
-    const resp = await fetch(`${apiUrl}`, {
+    const resp = await fetch(`${apiBaseUrl}/records`, {
       method: 'GET',
       signal,
     });
-    const { records, status, size } = await resp.json();
-    return  {records, status, size};
+    if (process.env.NODE_ENV === 'development') {
+      const records = await resp.json();
+      const jsonData = {
+        records,
+        size: records.profiles.length,
+        status: 'success',
+      };
+      return jsonData;
+    } else {
+      const jsonData = await resp.json();
+      if (jsonData.status !== 'success') {
+        throw new Error('An error occured while fetching data');
+      } else {
+        return jsonData;
+      }
+    }
   } catch (err) {
     console.error(err);
-    return err;
+    throw new Error(err);
   }
 }
 
