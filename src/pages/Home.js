@@ -1,63 +1,141 @@
-import { useEffect, useState } from 'react';
-import { getRecords } from '../utils/api';
-import OverlayContainer from '../components/OverlayContainer';
+import React, { useEffect, useState } from 'react';
 import './Home.css';
+import {
+  Header,
+  OverlayContainer,
+  TableHead,
+  BioTableData,
+  CardDetailsTableData,
+  PaginateButtons,
+  ViewTableData,
+  ContactTableData,
+  TextInputFilter,
+  PaymentMethodTableData,
+  ProfileModal,
+  Loader,
+  ErrorNotification,
+} from '../components';
+import { useDropdown } from '../hooks';
 
-export default function Home(props) {
+let apiBaseUrl;
+if (process.env.NODE_ENV === 'development') {
+  apiBaseUrl = 'http://localhost:3001';
+} else {
+  apiBaseUrl = 'https://api.enye.tech/v1/challenge';
+}
+
+export default function Home() {
   const [profiles, setProfiles] = useState([]);
-  const [paymentMethods, setPaymentMethods] = useState(new Map());
-  const [genders, setGenders] = useState(new Map());
+  const [
+    paymentMethodFilter,
+    PaymentMethodDropdownFilter,
+    setPaymentMethodOptions,
+  ] = useDropdown('Payment methods', 'payment-method-input-filter', '');
+  const [genderFilter, GenderDropdownFilter, setGenderOptions] = useDropdown(
+    'Gender',
+    'gender-input-filter',
+    ''
+  );
   const [filterName, setFilterName] = useState('');
-  const [filterPaymentMethod, setFilterPaymentMethod] = useState('');
-  const [filterGender, setFilterGender] = useState('');
   const [isOverlayVisible, toggleIsOverlayVisible] = useState(false);
   const [paginateStart, setPaginateStart] = useState(0);
   const [modalProfile, setModalProfile] = useState({});
+  const [loadingError, setLoadingError] = useState(null);
   const paginateLimit = 20;
+
+  function generateDropdownOptions(profiles, objProp) {
+    const optionsMap = new Map();
+    profiles.forEach((profile) => {
+      optionsMap.set(profile[objProp], profile[objProp]);
+    });
+    return Array.from(optionsMap.values()).sort();
+  }
+
+  function createUiProfile(profile) {
+    return {
+      ...profile,
+      FullName: `${profile.LastName} ${profile.FirstName}`,
+    };
+  }
+
+  function handleOnFilterNameChange(e) {
+    setFilterName(e.target.value);
+  }
+
+  function filterByName(profile) {
+    return profile.FullName.toLowerCase().includes(filterName.toLowerCase());
+  }
+
+  function filterDropdownBy(prop, filterString) {
+    return (profile) => {
+      return filterString.length === 0
+        ? true
+        : filterString.toLowerCase() === profile[prop].toLowerCase();
+    };
+  }
+
+  function sortNameAsc(p1, p2) {
+    if (p1.LastName > p2.LastName) {
+      return 1;
+    }
+    if (p1.LastName < p2.LastName) {
+      return -1;
+    }
+    return 0;
+  }
+
+  let filteredProfiles = profiles
+    .filter(filterByName)
+    .filter(filterDropdownBy('PaymentMethod', paymentMethodFilter))
+    .filter(filterDropdownBy('Gender', genderFilter))
+    .sort(sortNameAsc);
+
+  async function getRecords() {
+    try {
+      const resp = await fetch(`${apiBaseUrl}/records`, {
+        method: 'GET',
+      });
+      if (process.env.NODE_ENV === 'development') {
+        const records = await resp.json();
+        const jsonData = {
+          records,
+          size: records.profiles.length,
+          status: 'success',
+        };
+        return jsonData;
+      } else {
+        const jsonData = await resp.json();
+        if (jsonData.status !== 'success') {
+          throw new Error('An error occured while fetching data');
+        } else {
+          return jsonData;
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      throw new Error(err);
+    }
+  }
+
   useEffect(() => {
-    const controller = new AbortController();
-    const signal = controller.signal;
-    getRecords(signal)
-      .then(({ records, size }) => {
-        const mappedProfiles = records.profiles.map((profile) => {
-          return {
-            ...profile,
-            FullName: `${profile.LastName} ${profile.FirstName}`,
-            FormattedCCNumber: formatCardNumber(profile.CreditCardNumber),
-          };
-        });
-        setPaymentMethodsSelectOptions(records.profiles);
-        setGenderSelectOptions(records.profiles);
+    getRecords()
+      .then(({ records }) => {
+        const mappedProfiles = records.profiles.map(createUiProfile);
+        setPaymentMethodOptions(
+          generateDropdownOptions(mappedProfiles, 'PaymentMethod')
+        );
+        setGenderOptions(generateDropdownOptions(mappedProfiles, 'Gender'));
         setProfiles(mappedProfiles);
       })
-      .catch((err) => {});
-    return () => {
-      controller.abort();
-    };
-  }, []);
+      .catch((err) => {
+        setLoadingError(err);
+      });
+    return () => {};
+  }, [setPaymentMethodOptions, setGenderOptions]);
 
-  const setPaymentMethodsSelectOptions = (profiles) => {
-    for (let profile of profiles) {
-      setPaymentMethods((paymentMethods) =>
-        paymentMethods.set(profile.PaymentMethod, profile.PaymentMethod)
-      );
-    }
-  };
-
-  const setGenderSelectOptions = (profiles) => {
-    for (let profile of profiles) {
-      setGenders((genders) =>
-        genders.set(profile.Gender, profile.Gender)
-      );
-    }
-  };
-
-  const formatCardNumber = (cardNumber) => {
-    return cardNumber.split('').reduce((accum, numStr, indx) => {
-      const isMultOf4 = (indx + 1) % 4 === 0 && indx !== 0;
-      const newStr = isMultOf4 ? `${accum}${numStr} ` : `${accum}${numStr}`;
-      return newStr;
-    }, '');
+  const handleOpenProfileModal = (profile) => {
+    setModalProfile(profile);
+    toggleModal();
   };
 
   const toggleModal = () => {
@@ -72,374 +150,106 @@ export default function Home(props) {
   const prevDataSet = () => {
     setPaginateStart((paginateStart) => paginateStart - paginateLimit);
     document.getElementById('thead').scrollIntoView();
-
   };
 
   return (
-    <div className=" bg-gray-50 h-full">
-      <div className="py-4 mx-auto bg-gray-200">
-        <div className="flex flex-col w-full text-center">
-          <h1 className="mb-2 text-3xl font-medium text-gray-700 sm:text-4xl">
-            Patients Transactions Records
-          </h1>
-        </div>
-      </div>
+    <div className="h-full bg-gray-50">
+      <Header title="Transactions Records" />
+      {profiles.length === 0 && loadingError !== null ? (
+        <ErrorNotification />
+      ) : null}
+      {profiles.length === 0 && loadingError === null ? <Loader /> : null}
       {profiles.length ? (
         <div className="flex flex-col mb-10">
-          <div className="flex phone:mx-3 mx-4 mt-4">
+          <div className="flex mx-4 mt-4 phone:mx-3">
             <form className="flex flex-col w-full md:flex-row md:justify-between ">
               <div className="w-full sm:pl-3 sm:max-w-xs">
-                <label
-                  className="text-gray-600 font-semibold text-sm tracking-wide phone:w-full"
-                  htmlFor="name-filter-input"
+                <TextInputFilter
+                  value={filterName}
+                  onInputChange={handleOnFilterNameChange}
+                  id="name-input-filter"
+                  placeholder="Patient's name"
                 >
-                  Filter by name
-                  <input
-                    onChange={(e) => setFilterName(e.target.value)}
-                    type="text"
-                    id="name-filter-input"
-                    className=" rounded-md border-transparent flex-1 appearance-none border border-gray-300 w-full py-1 px-2 bg-white text-gray-700 placeholder-gray-400 shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-gray-600 focus:border-transparent"
-                    placeholder="Name"
-                  />
-                </label>
+                  Search
+                </TextInputFilter>
               </div>
-
-              <div className="flex flex-nowrap justify-between sm:pr-3 ">
+              <div className="flex justify-between flex-nowrap sm:pr-3 ">
                 <div className="sm:pl-3 md:mr-4 md:pl-0">
-                  <label
-                    className="text-gray-600 font-semibold text-sm tracking-wide "
-                    htmlFor="payment-method-filter-input"
-                  >
-                    Payment method
-                    <select
-                      onChange={(e) => setFilterPaymentMethod(e.target.value)}
-                      id="payment-method-filter-input"
-                      className="block uppercase py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-600 focus:border-transparent"
-                      name="payment-method-filter-input"
-                    >
-                      <option value="">All</option>
-                      {Array.from(paymentMethods.values())
-                        .sort()
-                        .map((paymentMethod) => (
-                          <option
-                            key={paymentMethod}
-                            className="uppercase"
-                            value={paymentMethod}
-                          >
-                            {paymentMethod}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                  <PaymentMethodDropdownFilter />
                 </div>
                 <div>
-                  <label
-                    className="text-gray-600 font-semibold text-sm tracking-wide "
-                    htmlFor="gender-filter-input"
-                  >
-                    Gender
-                    <select
-                      onChange={(e) => setFilterGender(e.target.value)}
-                      id="gender-filter-input"
-                      className="block uppercase  py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-600 focus:border-transparent"
-                      name="animals"
-                    >
-                      <option value="">All</option>
-                      {Array.from(genders.values())
-                        .sort()
-                        .map((gender) => (
-                          <option key={gender} value={gender}>
-                            {gender}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                  <GenderDropdownFilter />
                 </div>
               </div>
             </form>
           </div>
-          <div className="overflow-x-auto phone:mx-3 mx-4 my-4">
-            <div className="py-2 align-middle inline-block min-w-full sm:px-3">
-              <div className="table-container shadow overflow-hidden max-h-96 overflow-y-auto border-b border-blue-100 rounded-lg rounded-b-sm">
+          {/* Table */}
+          <div className="mx-4 my-4 overflow-x-auto phone:mx-3">
+            <div className="inline-block min-w-full py-2 align-middle sm:px-3">
+              <div className="overflow-hidden overflow-y-auto border-b border-gray-100 rounded-lg rounded-b-sm shadow table-container max-h-96">
                 <table className="min-w-full ">
-                  <caption className="sr-only">Transactions</caption>
-                  <thead id="thead">
-                    <tr className="">
-                      <th
-                        scope="col"
-                        className="sticky top-0 bg-gray-200  phone:px-2 px-3 lg:px-4  py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Bio
-                      </th>
-                      <th
-                        scope="col"
-                        className="sticky top-0 bg-gray-200  hidden sm:table-cell px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Card details
-                      </th>
-                      <th
-                        scope="col"
-                        className="sticky top-0 bg-gray-200  phone:px-1 px-3 lg:px-4 py-2 phone:text-left text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Payment Method
-                      </th>
-                      <th
-                        scope="col"
-                        className="sticky top-0 bg-gray-200  hidden md:table-cell px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Contact
-                      </th>
-                      <th
-                        scope="col"
-                        className="sticky top-0 bg-gray-200  text-right phone:px-2 px-3 lg:px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        View
-                      </th>
-                    </tr>
-                  </thead>
+                  <TableHead />
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {profiles
-                      .filter((profile) => {
-                        return profile.FullName.toLowerCase().includes(
-                          filterName.toLowerCase()
-                        );
-                      })
-                      .filter((profile) => {
-                        return filterPaymentMethod
-                          ? profile.PaymentMethod === filterPaymentMethod
-                          : profile;
-                      })
-                      .filter((profile) => {
-                        return filterGender
-                          ? profile.Gender === filterGender
-                          : profile;
-                      })
-                      .sort((p1, p2) => {
-                        if (p1.LastName > p2.LastName) {
-                          return 1;
-                        }
-                        if (p1.LastName < p2.LastName) {
-                          return -1;
-                        }
-                        return 0;
-                      })
-                      .slice(paginateStart, paginateStart + paginateLimit)
-                      .map((profile) => {
-                        return (
-                          <tr key={profile.Email} className="hover:bg-gray-100">
-                            <td className="phone:px-2 px-3 lg:px-4 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    <span className="uppercase">
-                                      {profile.LastName}
-                                    </span>{' '}
-                                    <span>{profile.FirstName}</span>
-                                  </div>
-                                  <div className="text-sm text-gray-500">
-                                    {profile.Gender}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="hidden sm:table-cell px-3 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {profile.CreditCardType}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {profile.FormattedCCNumber}
-                              </div>
-                            </td>
-                            <td className="phone:px-1 lg:px-4 py-4 whitespace-nowrap phone:text-left text-center">
-                              <div className="text-sm text-gray-900 uppercase">
-                                {profile.PaymentMethod}
-                              </div>
-                            </td>
-                            <td className="hidden md:table-cell px-3 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {profile.PhoneNumber}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {profile.Email}
-                              </div>
-                            </td>
-                            <td className="phone:px-2 px-3 lg:px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <button
-                                onClick={(e) => {
-                                  setModalProfile(profile);
-                                  toggleModal();
-                                }}
-                                className="rounded-sm px-3 py-1 bg-blue-400 text-white focus:outline-none focus:ring-1 ring-gray-800"
-                              >
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                    {filteredProfiles.length ? (
+                      filteredProfiles
+                        .slice(paginateStart, paginateStart + paginateLimit)
+                        .map((profile) => {
+                          return (
+                            <tr
+                              key={profile.Email}
+                              className="hover:bg-gray-100"
+                            >
+                              <BioTableData profile={profile} />
+                              <CardDetailsTableData profile={profile} />
+                              <PaymentMethodTableData profile={profile} />
+                              <ContactTableData profile={profile} />
+                              <ViewTableData
+                                openProfileModal={handleOpenProfileModal}
+                                profile={profile}
+                              />
+                            </tr>
+                          );
+                        })
+                    ) : (
+                      <tr className="text-center ">
+                        <td className="py-4" colSpan="5">
+                          Aww! No results for that filter
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
+          {/* Footer with buttons and table results info */}
           <div className="mx-4">
-            <div className="px-3 flex justify-center">
+            <div className="flex justify-between px-3 phone:px-0 phone:text-sm">
               <div>
-                <button
-                  onClick={prevDataSet}
-                  disabled={paginateStart === 0}
-                  className="disabled:cursor-not-allowed  disabled:opacity-50 rounded-sm px-3 mr-4 py-1 bg-blue-400 text-white focus:outline-none focus:ring-1 ring-gray-800"
-                >
-                  Previous
-                </button>
-                <button
-                  disabled={paginateStart + paginateLimit > profiles.length}
-                  onClick={nextDataSet}
-                  className="disabled:cursor-not-allowed  disabled:opacity-50 rounded-sm px-3 py-1 bg-blue-400 text-white focus:outline-none focus:ring-1 ring-gray-800"
-                >
-                  Next
-                </button>
+                Showing{' '}
+                {filteredProfiles.length ? paginateStart + 1 : paginateStart} to{' '}
+                {paginateStart +
+                  filteredProfiles.slice(
+                    paginateStart,
+                    paginateStart + paginateLimit
+                  ).length}{' '}
+                of {filteredProfiles.length} profiles
               </div>
+              <PaginateButtons
+                prevDataSet={prevDataSet}
+                nextDataSet={nextDataSet}
+                paginateStart={paginateStart}
+                paginateLimit={paginateLimit}
+                filteredProfiles={filteredProfiles}
+                profiles={profiles}
+              />
             </div>
           </div>
         </div>
-      ) : (
-        <div>Loading</div>
-      )}
+      ) : null}
       {isOverlayVisible ? (
         <OverlayContainer>
-          <div
-            className="dialog phone:min-w-full bg-white rounded-md shadow-xl overflow-hidden transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-headline"
-          >
-            <span id="modal-headline" className="sr-only">
-              Client details
-            </span>
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-              <div className="flex flex-col sm:items-start">
-                <section className="mt-2 phone:ml-2 sm:ml-4 text-left">
-                  <header className="uppercase inline-block px-2 text-xs mb-2 bg-gray-200 text-gray-500 rounded-md tracking-wide py-1">
-                    Bio
-                  </header>
-                  <dl className="flex">
-                    <dt className="mr-2">Full name:</dt>
-                    <dd className="text-xl text-left leading-6 text-gray-700">
-                      <span className="uppercase inline-block mr-2">
-                        {modalProfile.LastName}
-                      </span>
-                      <span className="mr-2">{modalProfile.FirstName}</span>
-                    </dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Gender:</dt>
-                    <dd className="text-gray-700">{modalProfile.Gender}</dd>
-                  </dl>
-                </section>
-                <section className="mt-2 phone:ml-2 sm:ml-4 text-left">
-                  <header className="uppercase inline-block px-2 text-xs mb-2 bg-gray-200 text-gray-500 rounded-md tracking-wide py-1">
-                    Login
-                  </header>
-                  <dl className="flex">
-                    <dt className="mr-2">Username:</dt>
-                    <dd className="text-gray-700">{modalProfile.UserName}</dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Last login:</dt>
-                    <dd className="text-gray-700">{modalProfile.LastLogin}</dd>
-                  </dl>
-                </section>
-                <section className="mt-2 phone:ml-2 sm:ml-4 text-left">
-                  <header className="uppercase inline-block px-2 text-xs mb-2 bg-gray-200 text-gray-500 rounded-md tracking-wide py-1">
-                    Payment details
-                  </header>
-                  <dl className="flex">
-                    <dt className="mr-2">Paid using:</dt>
-                    <dd className="text-gray-700 uppercase">
-                      {modalProfile.PaymentMethod}
-                    </dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Card type:</dt>
-                    <dd className="text-gray-700 capitalize">
-                      {modalProfile.CreditCardType}
-                    </dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Card number:</dt>
-                    <dd className="text-gray-700 uppercase">
-                      {modalProfile.FormattedCCNumber}
-                    </dd>
-                  </dl>
-                </section>
-                <section className="mt-2 phone:ml-2 sm:ml-4 text-left">
-                  <header className="uppercase inline-block px-2 text-xs mb-2 bg-gray-200 text-gray-500 rounded-md tracking-wide py-1">
-                    Contact
-                  </header>
-                  <dl className="flex">
-                    <dt className="mr-2">Email:</dt>
-                    <dd className="text-gray-700 ">
-                      {modalProfile.Email}
-                    </dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Phone:</dt>
-                    <dd className="text-gray-700">
-                      {modalProfile.PhoneNumber}
-                    </dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Domain name:</dt>
-                    <dd className="text-blue-700">
-                      <a
-                        className="hover:underline"
-                        href={`http://${modalProfile.DomainName}`}
-                      >
-                        {' '}
-                        {modalProfile.DomainName}
-                      </a>
-                    </dd>
-                  </dl>
-                </section>
-                <section className="mt-2 phone:ml-2 sm:ml-4 text-left">
-                  <header className="uppercase inline-block px-2 text-xs mb-2 bg-gray-200 text-gray-500 rounded-md tracking-wide py-1">
-                    Device
-                  </header>
-                  <dl className="flex">
-                    <dt className="mr-2">MAC Address:</dt>
-                    <dd className="text-gray-700">{modalProfile.MacAddress}</dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">Location:</dt>
-                    <dd className="text-gray-700">
-                      <span className="mr-1">
-                        {modalProfile.Longitude}&#176;,
-                      </span>{' '}
-                      <span className="">{modalProfile.Latitude}&#176; </span>
-                    </dd>
-                  </dl>
-                  <dl className="flex">
-                    <dt className="mr-2">URL:</dt>
-                    <dd className="text-blue-700">
-                      <a
-                        className="hover:underline"
-                        href={`http://${modalProfile.URL}`}
-                      >
-                        {' '}
-                        {modalProfile.URL}
-                      </a>
-                    </dd>
-                  </dl>
-                </section>
-                <div className="w-full my-4">
-                  <button onClick={toggleModal} className="px-6 py-2 bg-red-400 rounded-md text-white text-xl">
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ProfileModal toggleModal={toggleModal} modalProfile={modalProfile} />
         </OverlayContainer>
       ) : null}
     </div>

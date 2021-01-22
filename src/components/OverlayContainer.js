@@ -20,7 +20,7 @@ export default function OverlayContainer({ children }) {
 
   return createPortal(
     <div className="fixed inset-0 z-10 overflow-y-auto">
-      <div className="min-w-full pt-4 px-4 text-center flex justify-center">
+      <div className="flex justify-center min-w-full px-4 pt-4 text-center">
         <div className="fixed inset-0 transition-opacity" aria-hidden="true">
           <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
         </div>
