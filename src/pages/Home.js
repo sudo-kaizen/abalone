@@ -133,6 +133,10 @@ export default function Home() {
     return () => {};
   }, [setPaymentMethodOptions, setGenderOptions]);
 
+  useEffect(() => {
+    setPaginateStart(0);
+  }, [filterName, paymentMethodFilter, genderFilter]);
+
   const handleOpenProfileModal = (profile) => {
     setModalProfile(profile);
     toggleModal();
