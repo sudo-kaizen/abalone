@@ -4,15 +4,15 @@ module.exports = {
   theme: {
     extend: {
       screens: {
-        'phone': {'max': '425px'},
+        phone: { max: '425px' },
       },
-    }
+    },
   },
   variants: {
     extend: {
-opacity: ['disabled'],
-cursor: ['disabled'],
+      opacity: ['disabled'],
+      cursor: ['disabled'],
     },
   },
   plugins: [],
-}
+};

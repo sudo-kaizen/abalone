@@ -16,7 +16,7 @@ export default function PaginateButtons(props) {
         Previous
       </button>
       <button
-        disabled={paginateStart + paginateLimit > filteredProfiles.length}
+        disabled={paginateStart + paginateLimit >= filteredProfiles.length}
         onClick={nextDataSet}
         className="px-3 py-1 text-white bg-blue-400 rounded-sm disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-1 ring-gray-800"
       >

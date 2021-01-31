@@ -88,7 +88,7 @@ export default function Home() {
     .filter(filterByName)
     .filter(filterDropdownBy('PaymentMethod', paymentMethodFilter))
     .filter(filterDropdownBy('Gender', genderFilter))
-    .sort(sortNameAsc);
+    .sort(sortNameAsc)
 
   async function getRecords() {
     try {
@@ -132,6 +132,11 @@ export default function Home() {
       });
     return () => {};
   }, [setPaymentMethodOptions, setGenderOptions]);
+
+  useEffect(() => {
+    setPaginateStart(0)
+  }, [filterName, paymentMethodFilter,
+genderFilter])
 
   const handleOpenProfileModal = (profile) => {
     setModalProfile(profile);

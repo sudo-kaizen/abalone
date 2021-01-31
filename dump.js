@@ -1,4 +1,5 @@
-{/* <label
+{
+  /* <label
   className="text-sm font-semibold tracking-wide text-gray-600 "
   htmlFor="payment-method-filter-input"
 >
@@ -22,9 +23,11 @@
         </option>
       ))}
   </select>
-</label> */}
+</label> */
+}
 
-{/* <label
+{
+  /* <label
   className="text-sm font-semibold tracking-wide text-gray-600 "
   htmlFor="gender-filter-input"
 >
@@ -44,4 +47,5 @@
         </option>
       ))}
   </select>
-</label> */}
+</label> */
+}
