@@ -21,7 +21,7 @@ let apiBaseUrl;
 if (process.env.NODE_ENV === 'development') {
   apiBaseUrl = 'http://localhost:3001';
 } else {
-  apiBaseUrl = 'https://api.enye.tech/v1/challenge';
+  apiBaseUrl = 'https://vercel-testbed.vercel.app/api/profiles';
 }
 
 export default function Home() {
