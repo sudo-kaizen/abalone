@@ -92,7 +92,7 @@ export default function Home() {
 
   async function getRecords() {
     try {
-      const resp = await fetch(`${apiBaseUrl}/records`, {
+      const resp = await fetch(`${apiBaseUrl}`, {
         method: 'GET',
       });
       if (process.env.NODE_ENV === 'development') {
